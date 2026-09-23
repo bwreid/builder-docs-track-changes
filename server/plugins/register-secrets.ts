@@ -49,9 +49,14 @@ export default defineNitroPlugin(() => {
     scope: "user",
     kind: "api-key",
     required: true,
+    // The secrets-write HTTP route (unlike the actions pipeline) never wraps
+    // this call in request-context, so getRequestUserEmail() reads nothing
+    // even for a signed-in caller. Degrade to "can't verify from here" rather
+    // than blocking the save — the real connectivity check is the
+    // test-jira-connection action, which gets a reliable ctx.userEmail.
     validator: async (value) => {
       const userEmail = getRequestUserEmail();
-      if (!userEmail) return { ok: false, error: "Not signed in." };
+      if (!userEmail) return { ok: true };
 
       const [baseUrlSecret, emailSecret] = await Promise.all([
         readAppSecret({ key: "JIRA_BASE_URL", scope: "user", scopeId: userEmail }),
@@ -59,9 +64,7 @@ export default defineNitroPlugin(() => {
       ]);
       const baseUrl = baseUrlSecret?.value?.trim().replace(/\/+$/, "");
       const email = emailSecret?.value;
-      if (!baseUrl || !email) {
-        return { ok: false, error: "Set the Jira site URL and account email first." };
-      }
+      if (!baseUrl || !email) return { ok: true };
 
       const auth = Buffer.from(email + ":" + value).toString("base64");
       const res = await fetch(baseUrl + "/rest/api/3/myself", {

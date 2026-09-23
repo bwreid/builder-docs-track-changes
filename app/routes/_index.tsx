@@ -8,7 +8,6 @@ import {
 } from "@tabler/icons-react";
 import { Fragment, useState } from "react";
 import Markdown from "react-markdown";
-import { Link } from "react-router";
 
 import { APP_TITLE } from "@/lib/app-config";
 import { NotificationsPanel } from "@/components/notifications-panel";
@@ -421,17 +420,9 @@ export default function HomeRoute() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-sm font-medium text-muted-foreground">
-            Agent-Native change reports
-          </h1>
-          <Link
-            to="/tracked"
-            className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            Tracked changes
-          </Link>
-        </div>
+        <h1 className="text-sm font-medium text-muted-foreground">
+          Agent-Native change reports
+        </h1>
         <div className="flex items-center gap-2">
           <NotificationsPanel />
           <DropdownMenu>

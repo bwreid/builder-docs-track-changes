@@ -1,11 +1,9 @@
 import { useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import {
-  IconArrowLeft,
   IconBrandJira,
   IconExternalLink,
   IconGitPullRequest,
 } from "@tabler/icons-react";
-import { Link } from "react-router";
 
 import { APP_TITLE } from "@/lib/app-config";
 import { Badge } from "@/components/ui/badge";
@@ -159,7 +157,7 @@ function TrackedDocCard({ doc, jiraConnected }: { doc: TrackedDoc; jiraConnected
         ) : (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <IconBrandJira className="size-4" />
-            Add your Jira details in Settings (top-right chat icon) to create tickets.
+            Add your Jira details in Settings (top-right cog icon) to create tickets.
           </span>
         )}
         <Button size="sm" variant="outline" disabled title="Coming soon">
@@ -177,16 +175,7 @@ export default function TrackedRoute() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
-      <div className="flex items-center gap-4">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
-        >
-          <IconArrowLeft className="size-4" />
-          Reports
-        </Link>
-        <h1 className="text-sm font-medium text-muted-foreground">Tracked changes</h1>
-      </div>
+      <h1 className="text-sm font-medium text-muted-foreground">Tracked changes</h1>
 
       {isLoading && (
         <div className="space-y-2">
