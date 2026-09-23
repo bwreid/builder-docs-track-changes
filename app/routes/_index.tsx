@@ -10,6 +10,7 @@ import { Fragment, useState } from "react";
 import Markdown from "react-markdown";
 
 import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
+import { docRawMarkdownUrl } from "@/lib/docs-source";
 import { APP_TITLE } from "@/lib/app-config";
 import { NotificationsPanel } from "@/components/notifications-panel";
 import {
@@ -148,13 +149,14 @@ function DocSuggestionRow({
               criteriaBlock +
               `Doc suggestion id: ${suggestion.id}\n` +
               `Doc page: ${suggestion.url}\n` +
+              `Doc raw source (fetch this, not the rendered page): ${docRawMarkdownUrl(suggestion.path)}\n` +
               `Doc title: ${suggestion.title}\n` +
               `Reason this doc was flagged: ${suggestion.reason}\n` +
               `Related report section: ${suggestion.relatedHeading}\n\n` +
               `Report summary for context:\n${report.summary ?? ""}\n\n` +
-              "Fetch the live doc page above, find the specific existing sentence(s) that should change based on the reason and report summary, and propose exact before/after replacement text with reasoning grounded in the summary. If you can fetch the page, call update-doc-suggestion-analysis with id \"" +
+              "Fetch the raw source URL above (not the rendered doc page), find the specific existing sentence(s) that should change based on the reason and report summary, and propose exact before/after replacement text — copied verbatim from the raw source, markdown syntax and all — with reasoning grounded in the summary. Never anchor a change on text inside a JSX/HTML tag's quoted attribute value (e.g. inside summary=\"...\" or title=\"...\") if the after text adds new block-level content like a Callout, paragraph, or code block — that corrupts the file's structure. Keep before and after the same kind of content (prose stays prose); to add a new block near a JSX component, anchor on plain markdown text right before or after that component's closing tag, never inside one of its attributes. If you can fetch the source, call update-doc-suggestion-analysis with id \"" +
               suggestion.id +
-              '" and { analysisSummary, changes: [{before, after, reasoning}] }. If the page cannot be fetched or no specific sentence needs to change, call fail-doc-suggestion-analysis with id "' +
+              '" and { analysisSummary, changes: [{before, after, reasoning}] }. If the source cannot be fetched or no specific sentence needs to change, call fail-doc-suggestion-analysis with id "' +
               suggestion.id +
               '" and a short reason.',
             submit: true,
