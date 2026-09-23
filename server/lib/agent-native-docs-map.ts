@@ -1,8 +1,7 @@
-// A maintained map of agent-native.com/docs pages to topic keywords, so
-// change reports can suggest which docs likely need updating without
-// scraping the docs site on every report run. Paths and titles are taken
-// directly from the live docs nav (agent-native.com/docs) — update this file
-// by hand when the docs site's structure changes.
+// Seed data for the `docs_map_entries` table (see server/lib/docs-map-store.ts),
+// used only the first time that table is read and found empty. Once seeded,
+// the database — editable from the Docs Mapping page, or refreshed via the
+// re-scrape action — is the source of truth; this file stops being read.
 export const DOCS_BASE_URL = "https://www.agent-native.com";
 
 export interface DocEntry {
@@ -10,7 +9,7 @@ export interface DocEntry {
   topics: string[];
 }
 
-export const AGENT_NATIVE_DOCS: Record<string, DocEntry> = {
+export const AGENT_NATIVE_DOCS_SEED: Record<string, DocEntry> = {
   // Overview
   "/docs/": { title: "Getting Started", topics: ["getting started", "quickstart", "setup"] },
   "/docs/what-is-agent-native/": {

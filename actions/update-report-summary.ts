@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "../server/db.js";
-import { AGENT_NATIVE_DOCS, DOCS_BASE_URL } from "../server/lib/agent-native-docs-map.js";
+import { DOCS_BASE_URL, getDocsMap } from "../server/lib/docs-map-store.js";
 
 export default defineAction({
   description:
@@ -39,9 +39,10 @@ export default defineAction({
   }),
   run: async ({ reportId, summary, docsSummary, docsSuggestions }) => {
     const db = getDb();
+    const docsMap = await getDocsMap();
 
     // Never persist a doc link we didn't already know was real.
-    const validSuggestions = docsSuggestions.filter((s) => s.path in AGENT_NATIVE_DOCS);
+    const validSuggestions = docsSuggestions.filter((s) => s.path in docsMap);
 
     const [updated] = await db
       .update(schema.reports)
@@ -57,7 +58,7 @@ export default defineAction({
           reportId,
           path: s.path,
           url: `${DOCS_BASE_URL}${s.path}`,
-          title: AGENT_NATIVE_DOCS[s.path].title,
+          title: docsMap[s.path].title,
           reason: s.reason,
           relatedHeading: s.relatedHeading,
         })),

@@ -78,6 +78,20 @@ function slugify(text: string): string {
 
 type ReportMode = "7d" | "14d" | "since-last" | "custom";
 
+type Criteria = { selectionCriteria: string; outputFormat: string };
+
+function formatCriteriaBlock(criteria: Criteria): string {
+  const lines: string[] = [];
+  if (criteria.selectionCriteria.trim()) {
+    lines.push(`What to look for:\n${criteria.selectionCriteria.trim()}`);
+  }
+  if (criteria.outputFormat.trim()) {
+    lines.push(`Output format:\n${criteria.outputFormat.trim()}`);
+  }
+  if (lines.length === 0) return "";
+  return `Team guidance for recommending doc changes:\n${lines.join("\n\n")}\n\n`;
+}
+
 type DocSuggestionStatus = "new" | "ignored" | "tracked";
 
 type DocSuggestion = {
@@ -125,9 +139,11 @@ function headingId(reportId: string, text: string) {
 function DocSuggestionRow({
   suggestion,
   report,
+  criteria,
 }: {
   suggestion: DocSuggestion;
   report: ReportRow;
+  criteria: Criteria;
 }) {
   const updateStatus = useActionMutation("update-doc-suggestion-status");
 
@@ -138,9 +154,11 @@ function DocSuggestionRow({
       {
         onSuccess: () => {
           if (next !== "tracked") return;
+          const criteriaBlock = formatCriteriaBlock(criteria);
           sendToAgentChat({
             message: "Find the exact doc changes for this tracked suggestion",
             context:
+              criteriaBlock +
               `Doc suggestion id: ${suggestion.id}\n` +
               `Doc page: ${suggestion.url}\n` +
               `Doc title: ${suggestion.title}\n` +
@@ -210,7 +228,13 @@ function DocSuggestionRow({
   );
 }
 
-function DocsUpdateSection({ report }: { report: ReportRow }) {
+function DocsUpdateSection({
+  report,
+  criteria,
+}: {
+  report: ReportRow;
+  criteria: Criteria;
+}) {
   if (!report.docsSummary) return null;
 
   const relatedHeadings = Array.from(
@@ -246,7 +270,7 @@ function DocsUpdateSection({ report }: { report: ReportRow }) {
       {report.docsSuggestions.length > 0 && (
         <ul className="mt-3 space-y-2">
           {report.docsSuggestions.map((s) => (
-            <DocSuggestionRow key={s.id} suggestion={s} report={report} />
+            <DocSuggestionRow key={s.id} suggestion={s} report={report} criteria={criteria} />
           ))}
         </ul>
       )}
@@ -254,7 +278,7 @@ function DocsUpdateSection({ report }: { report: ReportRow }) {
   );
 }
 
-function ReportRowView({ report }: { report: ReportRow }) {
+function ReportRowView({ report, criteria }: { report: ReportRow; criteria: Criteria }) {
   const [open, setOpen] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteReport = useActionMutation("delete-report");
@@ -291,7 +315,7 @@ function ReportRowView({ report }: { report: ReportRow }) {
           </Button>
         </div>
         <CollapsibleContent className="px-4 pb-4">
-          <DocsUpdateSection report={report} />
+          <DocsUpdateSection report={report} criteria={criteria} />
 
           {report.status === "ready" && report.summary && (
             <div className="prose prose-sm dark:prose-invert max-w-none text-foreground prose-headings:text-foreground prose-strong:text-foreground">
@@ -356,11 +380,13 @@ function ReportRowView({ report }: { report: ReportRow }) {
 
 export default function HomeRoute() {
   const { data: reports, isLoading } = useActionQuery("list-reports", {});
+  const { data: criteriaData } = useActionQuery("get-criteria", {});
   const runReport = useActionMutation("create-report");
   const [customOpen, setCustomOpen] = useState(false);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
+  const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "" };
   const latestRangeEnd = reports?.[0]?.rangeEnd ?? null;
 
   const runReportWithMode = (
@@ -388,14 +414,16 @@ export default function HomeRoute() {
                 item.excerpt,
             )
             .join("\n\n");
+          const criteriaBlock = formatCriteriaBlock(criteria);
           sendToAgentChat({
             message: "Summarize this report",
             context:
+              criteriaBlock +
               "Report id: " +
               report.id +
               "\nMerged, non-docs pull requests on BuilderIO/agent-native in this reporting window:\n\n" +
               prList +
-              "\n\nWrite a narrative summary focused specifically on what application features changed (new capabilities, behavior changes, fixes, breaking changes), as Markdown with a heading per theme. Ignore anything documentation-related in that summary — those PRs have already been excluded. Then call the list-docs-topics action to see the real agent-native.com/docs pages and their topics, and decide which docs likely need updating based on the themes you wrote. Finally call update-report-summary with reportId \"" +
+              "\n\nWrite a narrative summary focused specifically on what application features changed (new capabilities, behavior changes, fixes, breaking changes), as Markdown with a heading per theme. Ignore anything documentation-related in that summary — those PRs have already been excluded. Then call the list-docs-topics action to see the real agent-native.com/docs pages and their topics, and decide which docs likely need updating based on the themes you wrote and the team guidance above. Finally call update-report-summary with reportId \"" +
               report.id +
               '" and: summary (the themed markdown, no docs heading), docsSummary (a brief paragraph on what documentation should change), and docsSuggestions (an array of {path, reason, relatedHeading} using only paths returned by list-docs-topics and relatedHeading matching one of your summary headings exactly).',
             submit: true,
@@ -470,7 +498,7 @@ export default function HomeRoute() {
       {!isLoading && reports && reports.length > 0 && (
         <div className="flex flex-col gap-2">
           {reports.map((report) => (
-            <ReportRowView key={report.id} report={report} />
+            <ReportRowView key={report.id} report={report} criteria={criteria} />
           ))}
         </div>
       )}

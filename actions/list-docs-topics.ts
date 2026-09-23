@@ -1,7 +1,7 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { AGENT_NATIVE_DOCS, DOCS_BASE_URL } from "../server/lib/agent-native-docs-map.js";
+import { DOCS_BASE_URL, getDocsMap } from "../server/lib/docs-map-store.js";
 
 export default defineAction({
   description:
@@ -9,9 +9,10 @@ export default defineAction({
   schema: z.object({}),
   http: { method: "GET" },
   run: async () => {
+    const docsMap = await getDocsMap();
     return {
       baseUrl: DOCS_BASE_URL,
-      docs: Object.entries(AGENT_NATIVE_DOCS).map(([path, entry]) => ({
+      docs: Object.entries(docsMap).map(([path, entry]) => ({
         path,
         title: entry.title,
         topics: entry.topics,

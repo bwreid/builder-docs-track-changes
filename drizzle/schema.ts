@@ -73,3 +73,26 @@ export const reportItems = pgTable("report_items", {
   labels: text("labels").notNull().default("[]"),
   excerpt: text("excerpt").notNull().default(""),
 });
+
+// Singleton row holding the user-editable guidance the agent applies when
+// deciding which docs need updating and what to change. Read by
+// server/lib/criteria-store.ts.
+export const criteria = pgTable("criteria", {
+  id: text("id").primaryKey(),
+  // What to look for when deciding a doc needs updating.
+  selectionCriteria: text("selection_criteria").notNull().default(""),
+  // How to write/format the summary and doc suggestions.
+  outputFormat: text("output_format").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(sql`now()`),
+});
+
+// The editable map of agent-native.com/docs pages this app suggests updates
+// against. Seeded once from server/lib/agent-native-docs-map.ts, then owned
+// by this table — edited by hand or refreshed via the re-scrape action.
+export const docsMapEntries = pgTable("docs_map_entries", {
+  path: text("path").primaryKey(),
+  title: text("title").notNull(),
+  // JSON-encoded string array of topic keywords.
+  topics: text("topics").notNull().default("[]"),
+  updatedAt: text("updated_at").notNull().default(sql`now()`),
+});
