@@ -28,6 +28,7 @@ export default defineAction({
         createdAt: schema.docSuggestions.createdAt,
         reportRangeStart: schema.reports.rangeStart,
         reportRangeEnd: schema.reports.rangeEnd,
+        reportSummary: schema.reports.summary,
       })
       .from(schema.docSuggestions)
       .innerJoin(schema.reports, eq(schema.docSuggestions.reportId, schema.reports.id))

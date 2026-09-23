@@ -1,14 +1,20 @@
+import { sendToAgentChat, useAgentChatContext } from "@agent-native/core/client/agent-chat";
 import { actionErrorMessage, useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import {
   IconBrandJira,
   IconExternalLink,
   IconGitPullRequest,
+  IconMessageCircleCheck,
+  IconMessageCirclePlus,
+  IconRefresh,
 } from "@tabler/icons-react";
 
+import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
 import { APP_TITLE } from "@/lib/app-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 export function meta() {
   return [
@@ -49,6 +55,7 @@ type TrackedDoc = {
   jiraIssueUrl: string | null;
   reportRangeStart: string;
   reportRangeEnd: string | null;
+  reportSummary: string | null;
 };
 
 function AnalysisStatusBadge({ status }: { status: TrackedDoc["analysisStatus"] }) {
@@ -65,9 +72,106 @@ function AnalysisStatusBadge({ status }: { status: TrackedDoc["analysisStatus"] 
   }
 }
 
-function TrackedDocCard({ doc, jiraConnected }: { doc: TrackedDoc; jiraConnected: boolean }) {
+function AddChangeToChatButton({
+  docId,
+  docTitle,
+  docUrl,
+  change,
+  index,
+}: {
+  docId: string;
+  docTitle: string;
+  docUrl: string;
+  change: Change;
+  index: number;
+}) {
+  const { items, set, remove } = useAgentChatContext();
+  const key = `doc-change:${docId}:${index}`;
+  const staged = items.some((item) => item.key === key);
+
+  const toggle = () => {
+    if (staged) {
+      remove(key);
+      return;
+    }
+    set({
+      key,
+      title: `${docTitle} — change ${index + 1}`,
+      context:
+        `Doc suggestion id: ${docId}\n` +
+        `Doc: ${docTitle} (${docUrl})\n\n` +
+        `Suggested change ${index + 1}:\n` +
+        `Before: ${change.before}\n` +
+        `After: ${change.after}\n` +
+        `Reasoning: ${change.reasoning}\n\n` +
+        `If asked to revise this, first call list-tracked-docs to see this suggestion's current full changes array, then call update-doc-suggestion-analysis with id "${docId}" and the complete updated changes array (only modify this change; keep the others exactly as they are), plus an updated analysisSummary.`,
+      openSidebar: true,
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={staged ? "Remove this change from the agent chat" : "Add this change to the agent chat"}
+      title={staged ? "Added to agent chat" : "Add to agent chat"}
+      className={cn(
+        "absolute right-2 top-2 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+        staged && "text-primary",
+      )}
+    >
+      {staged ? (
+        <IconMessageCircleCheck className="size-4" />
+      ) : (
+        <IconMessageCirclePlus className="size-4" />
+      )}
+    </button>
+  );
+}
+
+function TrackedDocCard({
+  doc,
+  jiraConnected,
+  criteria,
+}: {
+  doc: TrackedDoc;
+  jiraConnected: boolean;
+  criteria: Criteria;
+}) {
   const untrack = useActionMutation("update-doc-suggestion-status");
   const createJiraTicket = useActionMutation("create-jira-ticket");
+  const reanalyze = useActionMutation("reanalyze-doc-suggestion");
+
+  const isAnalyzing = doc.analysisStatus === "analyzing" || reanalyze.isPending;
+
+  const resuggest = () => {
+    reanalyze.mutate(
+      { id: doc.id },
+      {
+        onSuccess: () => {
+          const criteriaBlock = formatCriteriaBlock(criteria);
+          sendToAgentChat({
+            message: "Re-suggest the doc changes for this tracked item",
+            context:
+              criteriaBlock +
+              `Doc suggestion id: ${doc.id}\n` +
+              `Doc page: ${doc.url}\n` +
+              `Doc title: ${doc.title}\n` +
+              `Reason this doc was flagged: ${doc.reason}\n` +
+              `Related report section: ${doc.relatedHeading}\n\n` +
+              `Report summary for context:\n${doc.reportSummary ?? ""}\n\n` +
+              "Fetch the live doc page above, find the specific existing sentence(s) that should change based on the reason and report summary, and propose exact before/after replacement text with reasoning grounded in the summary — follow the team guidance above, especially the output tone. If you can fetch the page, call update-doc-suggestion-analysis with id \"" +
+              doc.id +
+              '" and { analysisSummary, changes: [{before, after, reasoning}] }. If the page cannot be fetched or no specific sentence needs to change, call fail-doc-suggestion-analysis with id "' +
+              doc.id +
+              '" and a short reason.',
+            submit: true,
+            openSidebar: true,
+          });
+        },
+      },
+    );
+  };
 
   return (
     <div className="rounded-md border border-border p-4">
@@ -108,7 +212,17 @@ function TrackedDocCard({ doc, jiraConnected }: { doc: TrackedDoc; jiraConnected
             <p className="text-sm text-foreground">{doc.analysisSummary}</p>
           )}
           {doc.changes.map((change, i) => (
-            <div key={i} className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+            <div
+              key={i}
+              className="relative rounded-md border border-border bg-muted/40 p-3 pe-9 text-sm"
+            >
+              <AddChangeToChatButton
+                docId={doc.id}
+                docTitle={doc.title}
+                docUrl={doc.url}
+                change={change}
+                index={i}
+              />
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Before
               </p>
@@ -140,8 +254,17 @@ function TrackedDocCard({ doc, jiraConnected }: { doc: TrackedDoc; jiraConnected
           {actionErrorMessage(createJiraTicket.error) ?? "Failed to create the Jira ticket."}
         </p>
       )}
+      {reanalyze.isError && (
+        <p className="mt-3 text-sm text-destructive">
+          {actionErrorMessage(reanalyze.error) ?? "Failed to re-suggest changes."}
+        </p>
+      )}
 
       <div className="mt-4 flex items-center gap-2">
+        <Button size="sm" variant="outline" disabled={isAnalyzing} onClick={resuggest}>
+          <IconRefresh className="size-4" />
+          {isAnalyzing ? "Re-suggesting..." : "Re-suggest"}
+        </Button>
         {doc.jiraIssueKey ? (
           <Button size="sm" variant="default" className="text-xs" asChild>
             <a
@@ -183,6 +306,8 @@ function TrackedDocCard({ doc, jiraConnected }: { doc: TrackedDoc; jiraConnected
 export default function TrackedRoute() {
   const { data: docs, isLoading } = useActionQuery("list-tracked-docs", {});
   const { data: jiraStatus } = useActionQuery("get-jira-status", {});
+  const { data: criteriaData } = useActionQuery("get-criteria", {});
+  const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "", outputTone: "" };
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
@@ -207,7 +332,12 @@ export default function TrackedRoute() {
       {!isLoading && docs && docs.length > 0 && (
         <div className="flex flex-col gap-2">
           {docs.map((doc) => (
-            <TrackedDocCard key={doc.id} doc={doc} jiraConnected={jiraStatus?.connected ?? false} />
+            <TrackedDocCard
+              key={doc.id}
+              doc={doc}
+              jiraConnected={jiraStatus?.connected ?? false}
+              criteria={criteria}
+            />
           ))}
         </div>
       )}
