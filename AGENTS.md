@@ -50,6 +50,13 @@ asked for. The
 - Verify a write before reporting it done — re-read the row or the screen.
 - Use `view-screen` or application state when the active page/selection is
   unclear.
+- Never start, stop, restart, or otherwise manage the dev server (or any other
+  long-running process) yourself. PGlite only tolerates one writer per
+  directory, so a second process (an agent-run CLI action, a second `pnpm dev`)
+  fights the user's already-running server for its file lock and produces
+  confusing, unrelated-looking errors. When something needs to be verified by
+  running the app, tell the user the exact command to run and what output or
+  behavior to check, and read back what they report — do not run it for them.
 
 For a custom app, keep `server/plugins/config.ts` aligned with the product
 brand. Its `app.name` is used in transactional emails, and its optional

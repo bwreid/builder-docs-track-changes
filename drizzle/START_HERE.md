@@ -40,3 +40,16 @@ read `dist/*.d.ts` — everything you need is in the two stub files.
 
 One smoke path (create + list), then one `pnpm typecheck`. See
 `self-modifying-code`.
+
+## `db:migrate` must run with the dev server stopped
+
+PGlite (the embedded WASM Postgres used for local dev) only tolerates one
+writer per data directory. Running `pnpm db:migrate` while `pnpm dev` is also
+open lets two separate processes open `./data/pglite` at once, which reliably
+crashes the WASM engine (`Aborted(). Build with -sASSERTIONS for more info.`)
+and corrupts local dev data — recovering means `rm -rf data` and re-migrating
+from scratch. `scripts/guard-db-migrate.mjs` now runs automatically as part of
+`pnpm db:migrate` and refuses with a clear message if the dev server (per
+`.agent-native/dev-server.json`) is still alive, but the underlying rule is
+still yours to follow: stop the dev server, run `pnpm db:migrate`, then start
+it again.
