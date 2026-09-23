@@ -1,0 +1,1 @@
+ALTER TABLE "reports" ADD COLUMN "pr_list_url" text DEFAULT '' NOT NULL;
