@@ -84,7 +84,12 @@ export default defineAction({
       );
     }
 
-    let created: { key?: unknown; id?: unknown };
+    let created: {
+      key?: unknown;
+      id?: unknown;
+      errorMessages?: unknown;
+      errors?: unknown;
+    };
     try {
       created = (await jiraRuntime.executeRequest({
         provider: "jira",
@@ -99,7 +104,7 @@ export default defineAction({
             labels: JIRA_LABELS,
           },
         },
-      })) as { key?: unknown; id?: unknown };
+      })) as typeof created;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("not connected")) {
@@ -111,7 +116,27 @@ export default defineAction({
     }
 
     const key = typeof created.key === "string" ? created.key : null;
-    if (!key) fail("Jira did not return an issue key.", { statusCode: 502 });
+    if (!key) {
+      // Jira returns 2xx-shaped responses through executeRequest even for
+      // rejected creates (bad project/issue-type id, missing required
+      // field, etc.) — surface its actual reason instead of a blind 502.
+      console.error("[create-jira-ticket] Jira did not return an issue key:", JSON.stringify(created));
+      const jiraErrors: string[] = [];
+      if (Array.isArray(created.errorMessages)) {
+        jiraErrors.push(...created.errorMessages.filter((m): m is string => typeof m === "string"));
+      }
+      if (created.errors && typeof created.errors === "object") {
+        for (const value of Object.values(created.errors as Record<string, unknown>)) {
+          if (typeof value === "string") jiraErrors.push(value);
+        }
+      }
+      fail(
+        jiraErrors.length > 0
+          ? `Jira rejected the ticket: ${jiraErrors.join("; ")}`
+          : "Jira did not return an issue key.",
+        { statusCode: 502 },
+      );
+    }
 
     let url: string | null = null;
     const baseUrlSecret = await readAppSecret({

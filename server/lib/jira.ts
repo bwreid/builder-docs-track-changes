@@ -15,4 +15,5 @@ export const jiraRuntime = createProviderApiRuntime({
 export const JIRA_PROJECT_ID = "10041";
 export const JIRA_PROJECT_KEY = "EDU";
 export const JIRA_ISSUE_TYPE_ID = "10133"; // "General Docs Update"
-export const JIRA_LABELS = ["Agent-Native", "AI Generated"];
+// Jira labels can't contain spaces.
+export const JIRA_LABELS = ["Agent-Native", "AI-Generated"];
