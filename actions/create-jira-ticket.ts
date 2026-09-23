@@ -84,14 +84,22 @@ export default defineAction({
       );
     }
 
-    let created: {
-      key?: unknown;
-      id?: unknown;
-      errorMessages?: unknown;
-      errors?: unknown;
+    type JiraCreateResult = {
+      response?: {
+        status?: number;
+        ok?: boolean;
+        json?: {
+          key?: unknown;
+          errorMessages?: unknown;
+          errors?: unknown;
+        };
+      };
     };
+    let result: JiraCreateResult;
     try {
-      created = (await jiraRuntime.executeRequest({
+      // executeRequest always wraps the response — the raw Jira body lives
+      // at result.response.json, never at the top level.
+      result = (await jiraRuntime.executeRequest({
         provider: "jira",
         method: "POST",
         path: "/rest/api/3/issue",
@@ -104,7 +112,7 @@ export default defineAction({
             labels: JIRA_LABELS,
           },
         },
-      })) as typeof created;
+      })) as JiraCreateResult;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("not connected")) {
@@ -115,18 +123,19 @@ export default defineAction({
       throw error;
     }
 
-    const key = typeof created.key === "string" ? created.key : null;
+    const jiraBody = result.response?.json;
+    const key = typeof jiraBody?.key === "string" ? jiraBody.key : null;
     if (!key) {
       // Jira returns 2xx-shaped responses through executeRequest even for
       // rejected creates (bad project/issue-type id, missing required
       // field, etc.) — surface its actual reason instead of a blind 502.
-      console.error("[create-jira-ticket] Jira did not return an issue key:", JSON.stringify(created));
+      console.error("[create-jira-ticket] Jira did not return an issue key:", JSON.stringify(result));
       const jiraErrors: string[] = [];
-      if (Array.isArray(created.errorMessages)) {
-        jiraErrors.push(...created.errorMessages.filter((m): m is string => typeof m === "string"));
+      if (Array.isArray(jiraBody?.errorMessages)) {
+        jiraErrors.push(...jiraBody.errorMessages.filter((m): m is string => typeof m === "string"));
       }
-      if (created.errors && typeof created.errors === "object") {
-        for (const value of Object.values(created.errors as Record<string, unknown>)) {
+      if (jiraBody?.errors && typeof jiraBody.errors === "object") {
+        for (const value of Object.values(jiraBody.errors as Record<string, unknown>)) {
           if (typeof value === "string") jiraErrors.push(value);
         }
       }

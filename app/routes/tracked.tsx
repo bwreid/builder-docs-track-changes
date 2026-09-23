@@ -1,4 +1,4 @@
-import { useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
+import { actionErrorMessage, useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import {
   IconBrandJira,
   IconExternalLink,
@@ -135,12 +135,23 @@ function TrackedDocCard({ doc, jiraConnected }: { doc: TrackedDoc; jiraConnected
         </p>
       )}
 
+      {createJiraTicket.isError && (
+        <p className="mt-3 text-sm text-destructive">
+          {actionErrorMessage(createJiraTicket.error) ?? "Failed to create the Jira ticket."}
+        </p>
+      )}
+
       <div className="mt-4 flex items-center gap-2">
         {doc.jiraIssueKey ? (
-          <Button size="sm" variant="outline" className="text-xs" asChild>
-            <a href={doc.jiraIssueUrl ?? "#"} target="_blank" rel="noreferrer">
+          <Button size="sm" variant="default" className="text-xs" asChild>
+            <a
+              href={doc.jiraIssueUrl ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              title={doc.jiraIssueKey}
+            >
               <IconBrandJira className="size-4" />
-              {doc.jiraIssueKey}
+              Go to Jira Ticket
               <IconExternalLink className="size-3" />
             </a>
           </Button>
