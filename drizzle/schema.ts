@@ -54,6 +54,8 @@ export const docSuggestions = pgTable("doc_suggestions", {
   changes: text("changes").notNull().default("[]"),
   jiraIssueKey: text("jira_issue_key"),
   jiraIssueUrl: text("jira_issue_url"),
+  prNumber: integer("pr_number"),
+  prUrl: text("pr_url"),
   createdAt: text("created_at").notNull().default(sql`now()`),
 });
 

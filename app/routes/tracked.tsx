@@ -8,9 +8,12 @@ import {
   IconMessageCirclePlus,
   IconRefresh,
 } from "@tabler/icons-react";
+import { useEffect, useRef } from "react";
 
 import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
+import { docRawMarkdownUrl } from "@/lib/docs-source";
 import { APP_TITLE } from "@/lib/app-config";
+import { DocBlockPreview } from "@/components/doc-block-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,6 +56,8 @@ type TrackedDoc = {
   changes: Change[];
   jiraIssueKey: string | null;
   jiraIssueUrl: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
   reportRangeStart: string;
   reportRangeEnd: string | null;
   reportSummary: string | null;
@@ -132,15 +137,31 @@ function AddChangeToChatButton({
 function TrackedDocCard({
   doc,
   jiraConnected,
+  githubConnected,
   criteria,
 }: {
   doc: TrackedDoc;
   jiraConnected: boolean;
+  githubConnected: boolean;
   criteria: Criteria;
 }) {
   const untrack = useActionMutation("update-doc-suggestion-status");
   const createJiraTicket = useActionMutation("create-jira-ticket");
+  const createPullRequest = useActionMutation("create-doc-pull-request");
   const reanalyze = useActionMutation("reanalyze-doc-suggestion");
+  const refreshPrStatus = useActionMutation("refresh-doc-pull-request-status");
+
+  // Check once per page load whether an existing PR was closed without
+  // merging — if so, the server clears it and the list refetches, re-enabling
+  // "Create pull request" here.
+  const checkedPrRef = useRef(false);
+  useEffect(() => {
+    if (doc.prUrl && !checkedPrRef.current) {
+      checkedPrRef.current = true;
+      refreshPrStatus.mutate({ suggestionId: doc.id });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.prUrl, doc.id]);
 
   const isAnalyzing = doc.analysisStatus === "analyzing" || reanalyze.isPending;
 
@@ -156,13 +177,14 @@ function TrackedDocCard({
               criteriaBlock +
               `Doc suggestion id: ${doc.id}\n` +
               `Doc page: ${doc.url}\n` +
+              `Doc raw source (fetch this, not the rendered page): ${docRawMarkdownUrl(doc.path)}\n` +
               `Doc title: ${doc.title}\n` +
               `Reason this doc was flagged: ${doc.reason}\n` +
               `Related report section: ${doc.relatedHeading}\n\n` +
               `Report summary for context:\n${doc.reportSummary ?? ""}\n\n` +
-              "Fetch the live doc page above, find the specific existing sentence(s) that should change based on the reason and report summary, and propose exact before/after replacement text with reasoning grounded in the summary — follow the team guidance above, especially the output tone. If you can fetch the page, call update-doc-suggestion-analysis with id \"" +
+              "Fetch the raw source URL above (not the rendered doc page), find the specific existing sentence(s) that should change based on the reason and report summary, and propose exact before/after replacement text — copied verbatim from the raw source, markdown syntax and all — with reasoning grounded in the summary — follow the team guidance above, especially the output tone. Never anchor a change on text inside a JSX/HTML tag's quoted attribute value (e.g. inside summary=\"...\" or title=\"...\") if the after text adds new block-level content like a Callout, paragraph, or code block — that corrupts the file's structure. Keep before and after the same kind of content (prose stays prose); to add a new block near a JSX component, anchor on plain markdown text right before or after that component's closing tag, never inside one of its attributes. If you can fetch the source, call update-doc-suggestion-analysis with id \"" +
               doc.id +
-              '" and { analysisSummary, changes: [{before, after, reasoning}] }. If the page cannot be fetched or no specific sentence needs to change, call fail-doc-suggestion-analysis with id "' +
+              '" and { analysisSummary, changes: [{before, after, reasoning}] }. If the source cannot be fetched or no specific sentence needs to change, call fail-doc-suggestion-analysis with id "' +
               doc.id +
               '" and a short reason.',
             submit: true,
@@ -226,13 +248,15 @@ function TrackedDocCard({
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Before
               </p>
-              <p className="mt-1 text-foreground line-through decoration-destructive/60">
-                {change.before}
-              </p>
+              <div className="mt-1 rounded-md bg-destructive/5 p-2">
+                <DocBlockPreview markdown={change.before} />
+              </div>
               <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 After
               </p>
-              <p className="mt-1 text-foreground">{change.after}</p>
+              <div className="mt-1 rounded-md bg-primary/5 p-2">
+                <DocBlockPreview markdown={change.after} />
+              </div>
               <p className="mt-2 text-xs text-muted-foreground">{change.reasoning}</p>
             </div>
           ))}
@@ -257,6 +281,11 @@ function TrackedDocCard({
       {reanalyze.isError && (
         <p className="mt-3 text-sm text-destructive">
           {actionErrorMessage(reanalyze.error) ?? "Failed to re-suggest changes."}
+        </p>
+      )}
+      {createPullRequest.isError && (
+        <p className="mt-3 text-sm text-destructive">
+          {actionErrorMessage(createPullRequest.error) ?? "Failed to create the pull request."}
         </p>
       )}
 
@@ -294,10 +323,35 @@ function TrackedDocCard({
             Add your Jira details in Settings (top-right cog icon) to create tickets.
           </span>
         )}
-        <Button size="sm" variant="outline" disabled title="Coming soon">
-          <IconGitPullRequest className="size-4" />
-          Create pull request
-        </Button>
+        {doc.prUrl ? (
+          <Button size="sm" variant="default" className="text-xs" asChild>
+            <a
+              href={doc.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={doc.prNumber ? `PR #${doc.prNumber}` : undefined}
+            >
+              <IconGitPullRequest className="size-4" />
+              Go to Pull Request
+              <IconExternalLink className="size-3" />
+            </a>
+          </Button>
+        ) : githubConnected ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={createPullRequest.isPending}
+            onClick={() => createPullRequest.mutate({ suggestionId: doc.id })}
+          >
+            <IconGitPullRequest className="size-4" />
+            {createPullRequest.isPending ? "Creating..." : "Create pull request"}
+          </Button>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <IconGitPullRequest className="size-4" />
+            Add your GitHub token in Settings (top-right cog icon) to create pull requests.
+          </span>
+        )}
       </div>
     </div>
   );
@@ -306,6 +360,7 @@ function TrackedDocCard({
 export default function TrackedRoute() {
   const { data: docs, isLoading } = useActionQuery("list-tracked-docs", {});
   const { data: jiraStatus } = useActionQuery("get-jira-status", {});
+  const { data: githubStatus } = useActionQuery("get-github-status", {});
   const { data: criteriaData } = useActionQuery("get-criteria", {});
   const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "", outputTone: "" };
 
@@ -336,6 +391,7 @@ export default function TrackedRoute() {
               key={doc.id}
               doc={doc}
               jiraConnected={jiraStatus?.connected ?? false}
+              githubConnected={githubStatus?.connected ?? false}
               criteria={criteria}
             />
           ))}

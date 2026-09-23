@@ -19,13 +19,16 @@ const SECRETS_ENDPOINT = agentNativePath("/_agent-native/secrets");
 
 type SecretStatus = { key: string; status: "set" | "unset" | "invalid" | "unknown"; last4?: string };
 
-const JIRA_FIELDS = [
+const SETTINGS_FIELDS = [
   { key: "JIRA_BASE_URL", label: "Jira site URL", placeholder: "https://yourcompany.atlassian.net" },
   { key: "JIRA_USER_EMAIL", label: "Jira account email", placeholder: "you@company.com" },
   { key: "JIRA_API_TOKEN", label: "Jira API token", placeholder: "" },
+  { key: "GITHUB_TOKEN", label: "GitHub token", placeholder: "" },
 ] as const;
 
-type FieldKey = (typeof JIRA_FIELDS)[number]["key"];
+const MASKED_FIELDS = new Set<string>(["JIRA_API_TOKEN", "GITHUB_TOKEN"]);
+
+type FieldKey = (typeof SETTINGS_FIELDS)[number]["key"];
 
 async function writeSecret(key: string, value: string): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch(`${SECRETS_ENDPOINT}/${key}`, {
@@ -44,6 +47,7 @@ export function SettingsPanel() {
     JIRA_BASE_URL: "",
     JIRA_USER_EMAIL: "",
     JIRA_API_TOKEN: "",
+    GITHUB_TOKEN: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -72,10 +76,14 @@ export function SettingsPanel() {
     setSaved(false);
     setTestResult(null);
 
-    // Order matters: the connection test reads the site URL and email that
-    // were just saved, so those two must land first.
+    // Order matters for the Jira fields: the connection test reads the site
+    // URL and email that were just saved, so those two must land first.
+    // GITHUB_TOKEN has no such dependency, so its position doesn't matter.
+    const jiraFieldTouched = ["JIRA_BASE_URL", "JIRA_USER_EMAIL", "JIRA_API_TOKEN"].some(
+      (key) => values[key as FieldKey].trim(),
+    );
     const nextErrors: Record<string, string> = {};
-    for (const field of JIRA_FIELDS) {
+    for (const field of SETTINGS_FIELDS) {
       const value = values[field.key].trim();
       if (!value) continue;
       const result = await writeSecret(field.key, value);
@@ -86,7 +94,7 @@ export function SettingsPanel() {
     setSaving(false);
     if (Object.keys(nextErrors).length === 0) {
       setSaved(true);
-      setValues({ JIRA_BASE_URL: "", JIRA_USER_EMAIL: "", JIRA_API_TOKEN: "" });
+      setValues({ JIRA_BASE_URL: "", JIRA_USER_EMAIL: "", JIRA_API_TOKEN: "", GITHUB_TOKEN: "" });
       fetch(SECRETS_ENDPOINT)
         .then((r) => (r.ok ? (r.json() as Promise<SecretStatus[]>) : []))
         .then((all) => {
@@ -95,6 +103,7 @@ export function SettingsPanel() {
           setStatuses(byKey);
         })
         .catch(() => {});
+      if (!jiraFieldTouched) return;
       testConnection.mutate(
         {},
         {
@@ -125,12 +134,13 @@ export function SettingsPanel() {
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Jira details used to create tickets from tracked doc changes.
+            Jira and GitHub details used to create tickets and pull requests from
+            tracked doc changes.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          {JIRA_FIELDS.map((field) => {
+          {SETTINGS_FIELDS.map((field) => {
             const status = statuses[field.key];
             const isSet = status?.status === "set";
             return (
@@ -138,7 +148,7 @@ export function SettingsPanel() {
                 <Label htmlFor={field.key}>{field.label}</Label>
                 <Input
                   id={field.key}
-                  type={field.key === "JIRA_API_TOKEN" ? "password" : "text"}
+                  type={MASKED_FIELDS.has(field.key) ? "password" : "text"}
                   value={values[field.key]}
                   onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
                   placeholder={

@@ -25,6 +25,8 @@ export default defineAction({
         changes: schema.docSuggestions.changes,
         jiraIssueKey: schema.docSuggestions.jiraIssueKey,
         jiraIssueUrl: schema.docSuggestions.jiraIssueUrl,
+        prNumber: schema.docSuggestions.prNumber,
+        prUrl: schema.docSuggestions.prUrl,
         createdAt: schema.docSuggestions.createdAt,
         reportRangeStart: schema.reports.rangeStart,
         reportRangeEnd: schema.reports.rangeEnd,

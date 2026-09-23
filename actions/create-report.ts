@@ -5,9 +5,8 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "../server/db.js";
+import { GITHUB_REPO_NAME as REPO_NAME, GITHUB_REPO_OWNER as REPO_OWNER } from "../server/lib/github.js";
 
-const REPO_OWNER = "BuilderIO";
-const REPO_NAME = "agent-native";
 const SINCE_LAST_FALLBACK_DAYS = 30;
 const MAX_PAGES = 10;
 const PER_PAGE = 100;

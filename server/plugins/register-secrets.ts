@@ -6,7 +6,7 @@ export default defineNitroPlugin(() => {
     key: "GITHUB_TOKEN",
     label: "GitHub token",
     description:
-      "Raises the GitHub API rate limit from 60 to 5,000 requests/hour when running reports. Reports still work without it.",
+      "Raises the GitHub API rate limit when running reports, and is required to create pull requests from tracked doc changes.",
     docsUrl: "https://github.com/settings/tokens",
     scope: "user",
     kind: "api-key",
