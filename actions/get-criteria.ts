@@ -1,7 +1,7 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { getCriteria } from "../server/lib/criteria-store.js";
+import { CRITERIA_DEFAULTS, getCriteria } from "../server/lib/criteria-store.js";
 
 export default defineAction({
   description:
@@ -9,6 +9,7 @@ export default defineAction({
   schema: z.object({}),
   http: { method: "GET" },
   run: async () => {
-    return await getCriteria();
+    const current = await getCriteria();
+    return { ...current, defaults: CRITERIA_DEFAULTS };
   },
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "criteria" ADD COLUMN "output_tone" text DEFAULT '' NOT NULL;

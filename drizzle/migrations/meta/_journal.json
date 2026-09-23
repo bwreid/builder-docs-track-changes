@@ -57,6 +57,13 @@
       "when": 1790198705340,
       "tag": "0007_third_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790201331577,
+      "tag": "0008_ordinary_tag",
+      "breakpoints": true
     }
   ]
 }

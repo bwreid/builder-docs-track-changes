@@ -16,39 +16,121 @@ export function meta() {
   ];
 }
 
-const SELECTION_PLACEHOLDER = [
-  "Examples:",
-  "- Flag a doc page only when a PR changes user-facing behavior, not internal refactors.",
-  "- Prefer the most specific doc page over a general overview page.",
-  "- Ignore changes to example apps or templates unless the core API also changed.",
-].join("\n");
+type CriteriaValues = {
+  selectionCriteria: string;
+  outputFormat: string;
+  outputTone: string;
+};
 
-const OUTPUT_FORMAT_PLACEHOLDER = [
-  "Examples:",
-  "- Keep the summary to 2-3 sentences per theme.",
-  "- Write reasons in plain language a support engineer could paste into a ticket.",
-  "- Prefer imperative before/after phrasing for suggested doc edits.",
-].join("\n");
+const FIELDS: { key: keyof CriteriaValues; label: string; placeholder: string; rows: number }[] = [
+  {
+    key: "selectionCriteria",
+    label: "What to look for",
+    rows: 8,
+    placeholder: [
+      "Examples:",
+      "- Flag a doc page only when a PR changes user-facing behavior, not internal refactors.",
+      "- Prefer the most specific doc page over a general overview page.",
+      "- Ignore changes to example apps or templates unless the core API also changed.",
+    ].join("\n"),
+  },
+  {
+    key: "outputFormat",
+    label: "Output format",
+    rows: 8,
+    placeholder: [
+      "Examples:",
+      "- Keep the summary to 2-3 sentences per theme.",
+      "- Write reasons in plain language a support engineer could paste into a ticket.",
+      "- Prefer imperative before/after phrasing for suggested doc edits.",
+    ].join("\n"),
+  },
+  {
+    key: "outputTone",
+    label: "Output tone",
+    rows: 12,
+    placeholder: [
+      "Examples:",
+      "- Friendly and casual.",
+      "- Formal and precise.",
+      "- Technical, written for an experienced engineer.",
+    ].join("\n"),
+  },
+];
+
+const EMPTY_VALUES: CriteriaValues = { selectionCriteria: "", outputFormat: "", outputTone: "" };
+
+function CriteriaField({
+  id,
+  label,
+  value,
+  placeholder,
+  rows,
+  onChange,
+  onReset,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  rows: number;
+  onChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <textarea
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full resize-y rounded-md border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-ring"
+      />
+      <div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-1.5 text-xs text-muted-foreground"
+          onClick={onReset}
+        >
+          Reset to Default
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function CriteriaRoute() {
   const { data, isLoading } = useActionQuery("get-criteria", {});
   const updateCriteria = useActionMutation("update-criteria");
-  const [selectionCriteria, setSelectionCriteria] = useState("");
-  const [outputFormat, setOutputFormat] = useState("");
+  const [values, setValues] = useState<CriteriaValues>(EMPTY_VALUES);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     if (data && !dirty) {
-      setSelectionCriteria(data.selectionCriteria);
-      setOutputFormat(data.outputFormat);
+      setValues({
+        selectionCriteria: data.selectionCriteria,
+        outputFormat: data.outputFormat,
+        outputTone: data.outputTone,
+      });
     }
   }, [data, dirty]);
 
+  const setField = (key: keyof CriteriaValues, value: string) => {
+    setValues((v) => ({ ...v, [key]: value }));
+    setDirty(true);
+  };
+
+  const resetField = (key: keyof CriteriaValues) => {
+    if (!data?.defaults) return;
+    setValues((v) => ({ ...v, [key]: data.defaults[key] }));
+    setDirty(true);
+  };
+
   const save = () => {
-    updateCriteria.mutate(
-      { selectionCriteria, outputFormat },
-      { onSuccess: () => setDirty(false) },
-    );
+    updateCriteria.mutate(values, { onSuccess: () => setDirty(false) });
   };
 
   return (
@@ -66,39 +148,21 @@ export default function CriteriaRoute() {
         <div className="space-y-4">
           <Skeleton className="h-40 w-full" />
           <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-56 w-full" />
         </div>
       ) : (
-        <>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="selection-criteria">What to look for</Label>
-            <textarea
-              id="selection-criteria"
-              value={selectionCriteria}
-              onChange={(e) => {
-                setSelectionCriteria(e.target.value);
-                setDirty(true);
-              }}
-              placeholder={SELECTION_PLACEHOLDER}
-              rows={8}
-              className="w-full resize-y rounded-md border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="output-format">Output format</Label>
-            <textarea
-              id="output-format"
-              value={outputFormat}
-              onChange={(e) => {
-                setOutputFormat(e.target.value);
-                setDirty(true);
-              }}
-              placeholder={OUTPUT_FORMAT_PLACEHOLDER}
-              rows={8}
-              className="w-full resize-y rounded-md border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-        </>
+        FIELDS.map((field) => (
+          <CriteriaField
+            key={field.key}
+            id={field.key}
+            label={field.label}
+            value={values[field.key]}
+            placeholder={field.placeholder}
+            rows={field.rows}
+            onChange={(value) => setField(field.key, value)}
+            onReset={() => resetField(field.key)}
+          />
+        ))
       )}
 
       <div className="flex items-center gap-3">

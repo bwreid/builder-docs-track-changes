@@ -83,6 +83,8 @@ export const criteria = pgTable("criteria", {
   selectionCriteria: text("selection_criteria").notNull().default(""),
   // How to write/format the summary and doc suggestions.
   outputFormat: text("output_format").notNull().default(""),
+  // Tone to write with (e.g. casual, formal, technical).
+  outputTone: text("output_tone").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`now()`),
 });
 

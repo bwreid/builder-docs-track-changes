@@ -9,6 +9,7 @@ import {
 import { Fragment, useState } from "react";
 import Markdown from "react-markdown";
 
+import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
 import { APP_TITLE } from "@/lib/app-config";
 import { NotificationsPanel } from "@/components/notifications-panel";
 import {
@@ -77,20 +78,6 @@ function slugify(text: string): string {
 }
 
 type ReportMode = "7d" | "14d" | "since-last" | "custom";
-
-type Criteria = { selectionCriteria: string; outputFormat: string };
-
-function formatCriteriaBlock(criteria: Criteria): string {
-  const lines: string[] = [];
-  if (criteria.selectionCriteria.trim()) {
-    lines.push(`What to look for:\n${criteria.selectionCriteria.trim()}`);
-  }
-  if (criteria.outputFormat.trim()) {
-    lines.push(`Output format:\n${criteria.outputFormat.trim()}`);
-  }
-  if (lines.length === 0) return "";
-  return `Team guidance for recommending doc changes:\n${lines.join("\n\n")}\n\n`;
-}
 
 type DocSuggestionStatus = "new" | "ignored" | "tracked";
 
@@ -386,7 +373,7 @@ export default function HomeRoute() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "" };
+  const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "", outputTone: "" };
   const latestRangeEnd = reports?.[0]?.rangeEnd ?? null;
 
   const runReportWithMode = (
@@ -423,7 +410,7 @@ export default function HomeRoute() {
               report.id +
               "\nMerged, non-docs pull requests on BuilderIO/agent-native in this reporting window:\n\n" +
               prList +
-              "\n\nWrite a narrative summary focused specifically on what application features changed (new capabilities, behavior changes, fixes, breaking changes), as Markdown with a heading per theme. Ignore anything documentation-related in that summary — those PRs have already been excluded. Then call the list-docs-topics action to see the real agent-native.com/docs pages and their topics, and decide which docs likely need updating based on the themes you wrote and the team guidance above. Finally call update-report-summary with reportId \"" +
+              "\n\nFollow the team guidance above for what to look for and how to write the summary. Then call the list-docs-topics action to see the real agent-native.com/docs pages and their topics, and decide which docs likely need updating based on the themes you wrote and that guidance. Finally call update-report-summary with reportId \"" +
               report.id +
               '" and: summary (the themed markdown, no docs heading), docsSummary (a brief paragraph on what documentation should change), and docsSuggestions (an array of {path, reason, relatedHeading} using only paths returned by list-docs-topics and relatedHeading matching one of your summary headings exactly).',
             submit: true,
