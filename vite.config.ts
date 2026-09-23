@@ -22,9 +22,23 @@ export default defineConfig({
     entries: [
       "app/entry.client.tsx",
       "app/root.tsx",
-      "app/components/layout/{Layout,Sidebar}.tsx",
-      "app/components/chat/ChatRouteContent.tsx",
-      "app/routes/{home,chat.$threadId}.tsx",
+      "app/components/layout/Layout.tsx",
+      "app/routes/{_index,tracked,criteria,docs-mapping}.tsx",
+    ],
+    // The Doc Block preview (app/components/doc-block-preview.tsx) pulls in
+    // @agent-native/core/blocks -> lowlight -> highlight.js, a package with
+    // dual CJS/ESM conditional exports three levels deep. Force it through
+    // Vite's dependency pre-bundling explicitly rather than relying on the
+    // scanner to discover and correctly interop-wrap it on its own — without
+    // this the browser can end up requesting highlight.js's CJS build
+    // directly, which throws "does not provide an export named 'default'".
+    // Neither package is a direct dependency of this app (pnpm's strict
+    // node_modules doesn't expose them at the project root), so they must be
+    // reached through Vite's "nested dependency" `>` syntax rather than by
+    // bare name.
+    include: [
+      "@agent-native/core > lowlight",
+      "@agent-native/core > lowlight > highlight.js",
     ],
   },
   resolve: {
