@@ -13,6 +13,7 @@ import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
 import { docRawMarkdownUrl } from "@/lib/docs-source";
 import { APP_TITLE } from "@/lib/app-config";
 import { NotificationsPanel } from "@/components/notifications-panel";
+import { RenameField } from "@/components/rename-field";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -272,24 +273,29 @@ function ReportRowView({ report, criteria }: { report: ReportRow; criteria: Crit
   const [open, setOpen] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteReport = useActionMutation("delete-report");
+  const renameReport = useActionMutation("rename-report");
 
   return (
     <div className="rounded-md border border-border">
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="flex items-center gap-3 p-4">
           <CollapsibleTrigger asChild>
-            <button type="button" className="flex flex-1 items-center gap-3 text-left">
+            <button
+              type="button"
+              aria-label={open ? "Collapse" : "Expand"}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
               <IconChevronRight
-                className={cn(
-                  "size-4 shrink-0 text-muted-foreground transition-transform",
-                  open && "rotate-90",
-                )}
+                className={cn("size-4 transition-transform", open && "rotate-90")}
               />
-              <span className="text-sm font-medium">
-                {report.userChosenName ?? formatRange(report.rangeStart, report.rangeEnd)}
-              </span>
             </button>
           </CollapsibleTrigger>
+          <RenameField
+            value={report.userChosenName ?? formatRange(report.rangeStart, report.rangeEnd)}
+            onSave={(name) => renameReport.mutate({ id: report.id, name })}
+            ariaLabel="Rename this report"
+            className="flex-1 text-sm font-medium"
+          />
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
             {report.itemCount} feature PR{report.itemCount === 1 ? "" : "s"}
           </span>

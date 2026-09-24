@@ -12,6 +12,7 @@ import {
   githubRuntime,
 } from "../server/lib/github.js";
 import { postJiraPullRequestComment } from "../server/lib/jira.js";
+import { reportDisplayName } from "../server/lib/report-display-name.js";
 
 type GitHubJsonResponse = { response?: { ok?: boolean; json?: unknown } };
 type Change = { before: string; after: string; reasoning: string; ignored?: boolean };
@@ -141,6 +142,12 @@ export default defineAction({
       return { number: suggestion.prNumber, url: suggestion.prUrl };
     }
 
+    const [report] = await db
+      .select()
+      .from(schema.reports)
+      .where(eq(schema.reports.id, suggestion.reportId));
+    if (!report) fail("Source report not found.", { statusCode: 404 });
+
     const tokenSecret = await readAppSecret({
       key: "GITHUB_TOKEN",
       scope: "user",
@@ -262,7 +269,7 @@ export default defineAction({
         method: "POST",
         path: `/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/pulls`,
         body: {
-          title: `Docs: update "${suggestion.title}"`,
+          title: `Docs update: ${reportDisplayName(report)}`,
           head: branchName,
           base: GITHUB_DEFAULT_BRANCH,
           body,

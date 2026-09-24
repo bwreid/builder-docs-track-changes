@@ -19,6 +19,7 @@ import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
 import { docRawMarkdownUrl } from "@/lib/docs-source";
 import { APP_TITLE } from "@/lib/app-config";
 import { DocBlockPreview } from "@/components/doc-block-preview";
+import { RenameField } from "@/components/rename-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +63,8 @@ type Change = { before: string; after: string; reasoning: string; ignored?: bool
 
 type ReportPr = { prNumber: number; prUrl: string; title: string };
 
+type ReportJiraTicket = { issueKey: string; issueUrl: string | null; title: string };
+
 type TrackedDoc = {
   id: string;
   reportId: string;
@@ -84,68 +87,6 @@ type TrackedDoc = {
   reportSummary: string | null;
   reportUserChosenName: string | null;
 };
-
-// Click-to-edit label with a pencil affordance on hover. `value` is the name
-// currently on display (already resolved from userChosenName || fallback);
-// `onSave` is only called with a real, changed, non-empty name.
-function RenameField({
-  value,
-  onSave,
-  ariaLabel,
-  className,
-  inputClassName,
-}: {
-  value: string;
-  onSave: (name: string) => void;
-  ariaLabel: string;
-  className?: string;
-  inputClassName?: string;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  if (editing) {
-    const commit = () => {
-      const trimmed = draft.trim();
-      setEditing(false);
-      if (trimmed && trimmed !== value) onSave(trimmed);
-    };
-    return (
-      <Input
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commit();
-          } else if (e.key === "Escape") {
-            setDraft(value);
-            setEditing(false);
-          }
-        }}
-        className={cn("h-7 px-2 py-1 text-sm", inputClassName)}
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setDraft(value);
-        setEditing(true);
-      }}
-      aria-label={ariaLabel}
-      className={cn("group/rename inline-flex min-w-0 items-center gap-1 text-left", className)}
-    >
-      <span className="truncate">{value}</span>
-      <IconPencil className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/rename:opacity-100" />
-    </button>
-  );
-}
 
 function AnalysisStatusBadge({ status }: { status: TrackedDoc["analysisStatus"] }) {
   switch (status) {
@@ -331,15 +272,17 @@ function TrackedDocCard({
   jiraConnected,
   githubConnected,
   existingReportPrs,
+  existingReportJiraTickets,
   criteria,
 }: {
   doc: TrackedDoc;
   jiraConnected: boolean;
   githubConnected: boolean;
   existingReportPrs: ReportPr[];
+  existingReportJiraTickets: ReportJiraTicket[];
   criteria: Criteria;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const untrack = useActionMutation("update-doc-suggestion-status");
   const createJiraTicket = useActionMutation("create-jira-ticket");
   const createPullRequest = useActionMutation("create-doc-pull-request");
@@ -505,15 +448,45 @@ function TrackedDocCard({
                 </a>
               </Button>
             ) : jiraConnected ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={createJiraTicket.isPending}
-                onClick={() => createJiraTicket.mutate({ suggestionId: doc.id })}
-              >
-                <IconBrandJira className="size-4" />
-                {createJiraTicket.isPending ? "Creating..." : "Create Jira ticket"}
-              </Button>
+              existingReportJiraTickets.length === 0 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={createJiraTicket.isPending}
+                  onClick={() => createJiraTicket.mutate({ suggestionId: doc.id })}
+                >
+                  <IconBrandJira className="size-4" />
+                  {createJiraTicket.isPending ? "Creating..." : "Create Jira ticket"}
+                </Button>
+              ) : (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" disabled={createJiraTicket.isPending}>
+                      <IconBrandJira className="size-4" />
+                      {createJiraTicket.isPending ? "Creating..." : "Create Jira ticket"}
+                      <IconChevronDown className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => createJiraTicket.mutate({ suggestionId: doc.id })}>
+                      Create new ticket
+                    </DropdownMenuItem>
+                    {existingReportJiraTickets.map((ticket) => (
+                      <DropdownMenuItem
+                        key={ticket.issueKey}
+                        onSelect={() =>
+                          createJiraTicket.mutate({
+                            suggestionId: doc.id,
+                            targetIssueKey: ticket.issueKey,
+                          })
+                        }
+                      >
+                        Add to {ticket.issueKey}: {ticket.title}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
             ) : (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <IconBrandJira className="size-4" />
@@ -682,6 +655,18 @@ export default function TrackedRoute() {
   const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "", outputTone: "" };
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
+  // Best-effort, once per page load: re-apply each report's current display
+  // name to its PRs/tickets, in case it was renamed after they were created.
+  const syncReportNames = useActionMutation("sync-report-names");
+  const syncedNamesRef = useRef(false);
+  useEffect(() => {
+    if (!syncedNamesRef.current) {
+      syncedNamesRef.current = true;
+      syncReportNames.mutate({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Existing open PRs, grouped by report, so a suggestion whose own report
   // already has a PR can offer "add to it" alongside "create new" — a
   // report with no PR yet has no entry here and behaves as before.
@@ -691,7 +676,36 @@ export default function TrackedRoute() {
       if (!doc.prNumber || !doc.prUrl) continue;
       const list = map.get(doc.reportId) ?? [];
       if (!list.some((pr) => pr.prNumber === doc.prNumber)) {
-        list.push({ prNumber: doc.prNumber, prUrl: doc.prUrl, title: doc.title });
+        // Matches the actual PR title (`Docs update: <report name>`), not
+        // this suggestion's own title.
+        list.push({
+          prNumber: doc.prNumber,
+          prUrl: doc.prUrl,
+          title: doc.reportUserChosenName ?? formatRange(doc.reportRangeStart, doc.reportRangeEnd),
+        });
+      }
+      map.set(doc.reportId, list);
+    }
+    return map;
+  }, [docs]);
+
+  // Existing Jira tickets, grouped by report, so a suggestion whose own
+  // report already has a ticket can offer "add to it" alongside "create
+  // new" — a report with no ticket yet has no entry here and behaves as
+  // before.
+  const existingJiraTicketsByReport = useMemo(() => {
+    const map = new Map<string, ReportJiraTicket[]>();
+    for (const doc of docs ?? []) {
+      if (!doc.jiraIssueKey) continue;
+      const list = map.get(doc.reportId) ?? [];
+      if (!list.some((ticket) => ticket.issueKey === doc.jiraIssueKey)) {
+        // Matches the actual ticket summary (`Batch Agent-Native Changes:
+        // <report name>`), not this suggestion's own title.
+        list.push({
+          issueKey: doc.jiraIssueKey,
+          issueUrl: doc.jiraIssueUrl,
+          title: doc.reportUserChosenName ?? formatRange(doc.reportRangeStart, doc.reportRangeEnd),
+        });
       }
       map.set(doc.reportId, list);
     }
@@ -783,6 +797,7 @@ export default function TrackedRoute() {
                 jiraConnected={jiraStatus?.connected ?? false}
                 githubConnected={githubStatus?.connected ?? false}
                 existingReportPrs={existingPrsByReport.get(doc.reportId) ?? []}
+                existingReportJiraTickets={existingJiraTicketsByReport.get(doc.reportId) ?? []}
                 criteria={criteria}
               />
             ))}
