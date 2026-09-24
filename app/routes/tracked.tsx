@@ -4,6 +4,8 @@ import {
   IconBrandJira,
   IconChevronDown,
   IconExternalLink,
+  IconEye,
+  IconEyeOff,
   IconGitPullRequest,
   IconMessageCircleCheck,
   IconMessageCirclePlus,
@@ -48,7 +50,7 @@ function formatRange(rangeStart: string, rangeEnd: string | null) {
   return start + " - " + dateFormatter.format(new Date(rangeEnd));
 }
 
-type Change = { before: string; after: string; reasoning: string };
+type Change = { before: string; after: string; reasoning: string; ignored?: boolean };
 
 type ReportPr = { prNumber: number; prUrl: string; title: string };
 
@@ -143,6 +145,34 @@ function AddChangeToChatButton({
   );
 }
 
+function IgnoreChangeButton({
+  docId,
+  index,
+  ignored,
+}: {
+  docId: string;
+  index: number;
+  ignored: boolean;
+}) {
+  const toggleIgnored = useActionMutation("toggle-doc-change-ignored");
+
+  return (
+    <button
+      type="button"
+      onClick={() => toggleIgnored.mutate({ id: docId, index, ignored: !ignored })}
+      disabled={toggleIgnored.isPending}
+      aria-label={ignored ? "Include this change in the pull request" : "Ignore this change (exclude from the pull request)"}
+      title={ignored ? "Ignored — excluded from pull requests" : "Ignore (exclude from pull requests)"}
+      className={cn(
+        "absolute right-9 top-2 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+        ignored && "text-destructive",
+      )}
+    >
+      {ignored ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+    </button>
+  );
+}
+
 function TrackedDocCard({
   doc,
   jiraConnected,
@@ -175,6 +205,7 @@ function TrackedDocCard({
   }, [doc.prUrl, doc.id]);
 
   const isAnalyzing = doc.analysisStatus === "analyzing" || reanalyze.isPending;
+  const hasIncludedChanges = doc.changes.length === 0 || doc.changes.some((change) => !change.ignored);
 
   const resuggest = () => {
     reanalyze.mutate(
@@ -247,8 +278,12 @@ function TrackedDocCard({
           {doc.changes.map((change, i) => (
             <div
               key={i}
-              className="relative rounded-md border border-border bg-muted/40 p-3 pe-9 text-sm"
+              className={cn(
+                "relative rounded-md border border-border bg-muted/40 p-3 pe-16 text-sm",
+                change.ignored && "opacity-50",
+              )}
             >
+              <IgnoreChangeButton docId={doc.id} index={i} ignored={change.ignored ?? false} />
               <AddChangeToChatButton
                 docId={doc.id}
                 docTitle={doc.title}
@@ -256,6 +291,11 @@ function TrackedDocCard({
                 change={change}
                 index={i}
               />
+              {change.ignored && (
+                <Badge variant="secondary" className="mb-2">
+                  Ignored — won&apos;t be included in the pull request
+                </Badge>
+              )}
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Before
               </p>
@@ -352,7 +392,8 @@ function TrackedDocCard({
             <Button
               size="sm"
               variant="outline"
-              disabled={createPullRequest.isPending}
+              disabled={createPullRequest.isPending || !hasIncludedChanges}
+              title={hasIncludedChanges ? undefined : "All changes are ignored — nothing to include."}
               onClick={() => createPullRequest.mutate({ suggestionId: doc.id })}
             >
               <IconGitPullRequest className="size-4" />
@@ -361,7 +402,12 @@ function TrackedDocCard({
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={createPullRequest.isPending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={createPullRequest.isPending || !hasIncludedChanges}
+                  title={hasIncludedChanges ? undefined : "All changes are ignored — nothing to include."}
+                >
                   <IconGitPullRequest className="size-4" />
                   {createPullRequest.isPending ? "Creating..." : "Create pull request"}
                   <IconChevronDown className="size-4" />

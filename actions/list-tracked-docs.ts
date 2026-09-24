@@ -39,7 +39,12 @@ export default defineAction({
 
     return rows.map((row) => ({
       ...row,
-      changes: JSON.parse(row.changes) as { before: string; after: string; reasoning: string }[],
+      changes: JSON.parse(row.changes) as {
+        before: string;
+        after: string;
+        reasoning: string;
+        ignored?: boolean;
+      }[],
     }));
   },
 });

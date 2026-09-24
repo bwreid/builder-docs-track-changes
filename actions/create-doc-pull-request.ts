@@ -13,7 +13,7 @@ import {
 } from "../server/lib/github.js";
 
 type GitHubJsonResponse = { response?: { ok?: boolean; json?: unknown } };
-type Change = { before: string; after: string; reasoning: string };
+type Change = { before: string; after: string; reasoning: string; ignored?: boolean };
 
 function githubErrorMessage(result: GitHubJsonResponse, fallback: string): string {
   const json = result.response?.json as { message?: unknown } | undefined;
@@ -151,7 +151,7 @@ export default defineAction({
       });
     }
 
-    const changes = JSON.parse(suggestion.changes) as Change[];
+    const changes = (JSON.parse(suggestion.changes) as Change[]).filter((change) => !change.ignored);
     if (changes.length === 0) {
       fail("This suggestion has no changes to apply.", { statusCode: 400 });
     }
