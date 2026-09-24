@@ -25,6 +25,21 @@ function link(label: string, href: string): AdfNode {
   return { type: "text", text: label, marks: [{ type: "link", attrs: { href } }] };
 }
 
+function bold(value: string): AdfNode {
+  return { type: "text", text: value, marks: [{ type: "strong" }] };
+}
+
+function bulletList(...items: AdfNode[]): AdfNode {
+  return {
+    type: "bulletList",
+    content: items.map((item) => ({ type: "listItem", content: [item] })),
+  };
+}
+
+function emptyLine(): AdfNode {
+  return { type: "paragraph", content: [] };
+}
+
 export default defineAction({
   description:
     "Create a Jira ticket in the Customer Education project for a tracked documentation suggestion.",
@@ -63,17 +78,21 @@ export default defineAction({
           "Agent-Native flagged this documentation page for an update based on a recent Agent-Native change report.",
         ),
       ),
-      paragraph(text("Doc page: "), link(suggestion.title, suggestion.url)),
+      bulletList(paragraph(text("Doc page: "), link(suggestion.title, suggestion.url))),
       paragraph(text(suggestion.reason)),
     ];
 
-    for (const change of changes) {
+    changes.forEach((change, index) => {
+      if (index === 0) content.push(emptyLine());
       content.push(
-        paragraph(text("Before: " + change.before)),
-        paragraph(text("After: " + change.after)),
-        paragraph(text("Why: " + change.reasoning)),
+        paragraph(bold("Before: "), text(change.before)),
+        emptyLine(),
+        paragraph(bold("After: "), text(change.after)),
+        emptyLine(),
+        paragraph(bold("Why: "), text(change.reasoning)),
+        emptyLine(),
       );
-    }
+    });
 
     if (report.prListUrl) {
       content.push(
