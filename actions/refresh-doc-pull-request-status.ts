@@ -34,10 +34,13 @@ export default defineAction({
     }
 
     if (json.state === "closed" && !json.merged) {
+      // Multiple suggestions can share one PR (consolidated onto the same
+      // branch) — clear every row referencing it, not just this one, so a
+      // sibling suggestion's button also re-enables.
       await db
         .update(schema.docSuggestions)
         .set({ prNumber: null, prUrl: null })
-        .where(eq(schema.docSuggestions.id, suggestionId));
+        .where(eq(schema.docSuggestions.prNumber, suggestion.prNumber));
       return { hasPr: false as const, wasClosed: true };
     }
 

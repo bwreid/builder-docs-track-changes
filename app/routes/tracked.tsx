@@ -2,13 +2,14 @@ import { sendToAgentChat, useAgentChatContext } from "@agent-native/core/client/
 import { actionErrorMessage, useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import {
   IconBrandJira,
+  IconChevronDown,
   IconExternalLink,
   IconGitPullRequest,
   IconMessageCircleCheck,
   IconMessageCirclePlus,
   IconRefresh,
 } from "@tabler/icons-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { type Criteria, formatCriteriaBlock } from "@/lib/criteria";
 import { docRawMarkdownUrl } from "@/lib/docs-source";
@@ -16,6 +17,12 @@ import { APP_TITLE } from "@/lib/app-config";
 import { DocBlockPreview } from "@/components/doc-block-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +49,8 @@ function formatRange(rangeStart: string, rangeEnd: string | null) {
 }
 
 type Change = { before: string; after: string; reasoning: string };
+
+type ReportPr = { prNumber: number; prUrl: string; title: string };
 
 type TrackedDoc = {
   id: string;
@@ -138,11 +147,13 @@ function TrackedDocCard({
   doc,
   jiraConnected,
   githubConnected,
+  existingReportPrs,
   criteria,
 }: {
   doc: TrackedDoc;
   jiraConnected: boolean;
   githubConnected: boolean;
+  existingReportPrs: ReportPr[];
   criteria: Criteria;
 }) {
   const untrack = useActionMutation("update-doc-suggestion-status");
@@ -337,15 +348,42 @@ function TrackedDocCard({
             </a>
           </Button>
         ) : githubConnected ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={createPullRequest.isPending}
-            onClick={() => createPullRequest.mutate({ suggestionId: doc.id })}
-          >
-            <IconGitPullRequest className="size-4" />
-            {createPullRequest.isPending ? "Creating..." : "Create pull request"}
-          </Button>
+          existingReportPrs.length === 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={createPullRequest.isPending}
+              onClick={() => createPullRequest.mutate({ suggestionId: doc.id })}
+            >
+              <IconGitPullRequest className="size-4" />
+              {createPullRequest.isPending ? "Creating..." : "Create pull request"}
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={createPullRequest.isPending}>
+                  <IconGitPullRequest className="size-4" />
+                  {createPullRequest.isPending ? "Creating..." : "Create pull request"}
+                  <IconChevronDown className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => createPullRequest.mutate({ suggestionId: doc.id })}>
+                  Create new PR
+                </DropdownMenuItem>
+                {existingReportPrs.map((pr) => (
+                  <DropdownMenuItem
+                    key={pr.prNumber}
+                    onSelect={() =>
+                      createPullRequest.mutate({ suggestionId: doc.id, targetPrNumber: pr.prNumber })
+                    }
+                  >
+                    Add to PR #{pr.prNumber}: {pr.title}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
         ) : (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <IconGitPullRequest className="size-4" />
@@ -363,6 +401,22 @@ export default function TrackedRoute() {
   const { data: githubStatus } = useActionQuery("get-github-status", {});
   const { data: criteriaData } = useActionQuery("get-criteria", {});
   const criteria: Criteria = criteriaData ?? { selectionCriteria: "", outputFormat: "", outputTone: "" };
+
+  // Existing open PRs, grouped by report, so a suggestion whose own report
+  // already has a PR can offer "add to it" alongside "create new" — a
+  // report with no PR yet has no entry here and behaves as before.
+  const existingPrsByReport = useMemo(() => {
+    const map = new Map<string, ReportPr[]>();
+    for (const doc of docs ?? []) {
+      if (!doc.prNumber || !doc.prUrl) continue;
+      const list = map.get(doc.reportId) ?? [];
+      if (!list.some((pr) => pr.prNumber === doc.prNumber)) {
+        list.push({ prNumber: doc.prNumber, prUrl: doc.prUrl, title: doc.title });
+      }
+      map.set(doc.reportId, list);
+    }
+    return map;
+  }, [docs]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
@@ -392,6 +446,7 @@ export default function TrackedRoute() {
               doc={doc}
               jiraConnected={jiraStatus?.connected ?? false}
               githubConnected={githubStatus?.connected ?? false}
+              existingReportPrs={existingPrsByReport.get(doc.reportId) ?? []}
               criteria={criteria}
             />
           ))}
