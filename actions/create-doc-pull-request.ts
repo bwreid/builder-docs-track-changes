@@ -11,6 +11,7 @@ import {
   GITHUB_REPO_OWNER,
   githubRuntime,
 } from "../server/lib/github.js";
+import { postJiraPullRequestComment } from "../server/lib/jira.js";
 
 type GitHubJsonResponse = { response?: { ok?: boolean; json?: unknown } };
 type Change = { before: string; after: string; reasoning: string; ignored?: boolean };
@@ -283,6 +284,9 @@ export default defineAction({
         .update(schema.docSuggestions)
         .set({ prNumber, prUrl })
         .where(eq(schema.docSuggestions.id, suggestionId));
+      if (suggestion.jiraIssueKey) {
+        await postJiraPullRequestComment(suggestion.jiraIssueKey, prUrl, "new");
+      }
       return { number: prNumber, url: prUrl };
     }
 
@@ -389,6 +393,9 @@ export default defineAction({
         .update(schema.docSuggestions)
         .set({ prNumber, prUrl: targetPrUrl })
         .where(eq(schema.docSuggestions.id, suggestionId));
+      if (suggestion.jiraIssueKey) {
+        await postJiraPullRequestComment(suggestion.jiraIssueKey, targetPrUrl, "existing");
+      }
       return { number: prNumber, url: targetPrUrl };
     }
 
