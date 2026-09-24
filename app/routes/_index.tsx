@@ -443,7 +443,7 @@ export default function HomeRoute() {
         </h1>
         <div className="flex items-center gap-2">
           <NotificationsPanel />
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button size="sm" disabled={runReport.isPending}>
                 {runReport.isPending ? "Running..." : "Run report"}

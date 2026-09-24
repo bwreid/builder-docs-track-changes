@@ -548,7 +548,7 @@ function TrackedDocCard({
                   {createPullRequest.isPending ? "Creating..." : "Create pull request"}
                 </Button>
               ) : (
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <Button
                       size="sm"
