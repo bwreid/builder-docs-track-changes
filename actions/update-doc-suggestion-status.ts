@@ -1,5 +1,5 @@
 import { defineAction, fail } from "@agent-native/core/action";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "../server/db.js";
@@ -27,6 +27,9 @@ export default defineAction({
         // after an untrack shouldn't discard a completed analysis.
         analysisStatus:
           status === "tracked" && !existing.analysisStatus ? "pending" : existing.analysisStatus,
+        // Refreshed on every (re-)track so the tracked-changes page can order
+        // by most-recently-tracked first.
+        trackedAt: status === "tracked" ? sql`now()` : existing.trackedAt,
       })
       .where(eq(schema.docSuggestions.id, id))
       .returning();

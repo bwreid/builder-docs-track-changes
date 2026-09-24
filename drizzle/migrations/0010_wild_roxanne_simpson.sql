@@ -1,0 +1,1 @@
+ALTER TABLE "doc_suggestions" ADD COLUMN "tracked_at" text;

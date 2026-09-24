@@ -27,6 +27,9 @@ export const reports = pgTable("reports", {
   // GitHub search link scoped to closed PRs in [rangeStart, rangeEnd] — the
   // "see everything" escape hatch now that the UI only shows the summary.
   prListUrl: text("pr_list_url").notNull().default(""),
+  // User-editable display name, shown instead of the date range when set.
+  // Purely cosmetic — never used to identify or link the report.
+  userChosenName: text("user_chosen_name"),
   createdAt: text("created_at").notNull().default(sql`now()`),
 });
 
@@ -56,6 +59,14 @@ export const docSuggestions = pgTable("doc_suggestions", {
   jiraIssueUrl: text("jira_issue_url"),
   prNumber: integer("pr_number"),
   prUrl: text("pr_url"),
+  // Set whenever status transitions to "tracked" — drives the tracked-changes
+  // page's most-recently-tracked-first ordering (createdAt reflects when the
+  // suggestion was generated, not when the user tracked it).
+  trackedAt: text("tracked_at"),
+  // User-editable display name, shown instead of the original title when
+  // set. Purely cosmetic — never used to identify or link the suggestion
+  // (path/url/reportId are untouched by renaming).
+  userChosenName: text("user_chosen_name"),
   createdAt: text("created_at").notNull().default(sql`now()`),
 });
 

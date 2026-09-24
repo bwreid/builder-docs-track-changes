@@ -103,6 +103,7 @@ type ReportRow = {
   errorMessage: string | null;
   itemCount: number;
   prListUrl: string;
+  userChosenName: string | null;
   createdAt: string;
 };
 
@@ -285,7 +286,7 @@ function ReportRowView({ report, criteria }: { report: ReportRow; criteria: Crit
                 )}
               />
               <span className="text-sm font-medium">
-                {formatRange(report.rangeStart, report.rangeEnd)}
+                {report.userChosenName ?? formatRange(report.rangeStart, report.rangeEnd)}
               </span>
             </button>
           </CollapsibleTrigger>
