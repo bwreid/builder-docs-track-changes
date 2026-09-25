@@ -5,6 +5,10 @@ summarizes what shipped, and flags which pages on agent-native.com/docs are now
 out of date — then helps you take each flagged page all the way to a tracked
 Jira ticket and GitHub pull request.
 
+| Change Reports | Tracked Changes |
+| --- | --- |
+| ![Change Reports page](public/snapshot-change-reports.png) | ![Tracked Changes page](public/snapshot-tracked-changes.png) |
+
 ## Features
 
 ### Change reports
