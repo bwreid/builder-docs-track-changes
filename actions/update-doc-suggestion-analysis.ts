@@ -28,12 +28,28 @@ export default defineAction({
   }),
   run: async ({ id, analysisSummary, changes }) => {
     const db = getDb();
+    const [existing] = await db
+      .select()
+      .from(schema.docSuggestions)
+      .where(eq(schema.docSuggestions.id, id));
+    if (!existing) fail("Doc suggestion not found.", { statusCode: 404 });
+
+    // The agent always resubmits the full changes array, and its schema has
+    // no `ignored` field — carry that flag forward by matching on `before`
+    // text so a user's ignore choice isn't silently dropped by an unrelated
+    // re-analysis (e.g. revising one change via chat, or a full re-suggest).
+    const previousChanges = JSON.parse(existing.changes) as { before: string; ignored?: boolean }[];
+    const mergedChanges = changes.map((change) => {
+      const previous = previousChanges.find((p) => p.before === change.before);
+      return previous?.ignored ? { ...change, ignored: true } : change;
+    });
+
     const [updated] = await db
       .update(schema.docSuggestions)
       .set({
         analysisStatus: "ready",
         analysisSummary,
-        changes: JSON.stringify(changes),
+        changes: JSON.stringify(mergedChanges),
       })
       .where(eq(schema.docSuggestions.id, id))
       .returning();
